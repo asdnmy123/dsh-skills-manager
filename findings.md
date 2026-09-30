@@ -1,4 +1,4 @@
-# 初始化发现
+# 技术核对记录
 
 记录日期：2026-09-30。以下为外部参考资料的技术摘要，不构成用户指令。
 
@@ -10,6 +10,18 @@
 - npm 查询并锁定 @deepseek-ai/cordis 4.0.4、TypeScript 7.0.2；测试使用真实 Cordis Context 和 YAML 解析器。
 - bundle 使用 dsh.bundle.patch 声明配置层；共享宿主依赖同时声明 peerDependencies 与 devDependencies。
 - 官方技能能力包含注册表、不同来源及 scope；删除能力与启用状态持久化仍需按目标宿主版本核对。
+
+## 技能管理开发核对
+
+- 用户已明确目标为 Desktop profile，API 版本 0.2.0-rc.2；开发和集成验证依赖固定该版本。
+- 该版本没有技能管理写接口。本地提供方识别 disable-model-invocation 和 user-invocable；两者关闭后目录仍保留条目，模型与手动调用均不可用。
+- 开关原策略保存于技能 YAML 头部 dsh-skills-manager-state，启用时恢复；正文不重新序列化。
+- Connection 的共享 /api interceptor 只能有一个。插件采用 Connection.fetch 的两个 exact route，并使用标准 RPC envelope，适配桌面与浏览器且与已有 interceptor 共存。
+- 使用公共 registerProvider 的空提供方获取 invalidate 能力，刷新和写操作立即通知整个注册表；未修改原提供方或私有缓存。
+- 来源包括 project-dsh/project-agents/custom/user-dsh/user-agents/bundled/runtime；同名项显示该视图的优胜项，删除后可能出现下层同名项。
+- 删除使用同一根目录下 .dsh-skills-manager-trash 的唯一目录，移动整包/平铺文件并保存恢复凭据。链接、硬链接、随包/虚拟/远程和未配置目录只读。
+- 客户端主题应复用 --dsw-alias-* 变量；React 使用宿主的 18.3.1。真实渲染器与 Connection 客户端、桌面 fetch carrier 均通过集成测试。
+- Desktop profile 为桌面应用专用配置，安装应使用桌面插件管理入口。本次只生成本地安装包，未修改用户 profile。
 
 ## 官方资料
 

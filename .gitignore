@@ -1,6 +1,7 @@
 node_modules/
 .npm-cache/
 lib/
+artifacts/
 coverage/
 *.tsbuildinfo
 *.tgz

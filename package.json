@@ -2,7 +2,7 @@
   "name": "dsh-skills-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "DeepSeek Harness 技能管理插件（初始化骨架）",
+  "description": "DeepSeek Harness Desktop 技能管理页面",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./lib/index.js",
@@ -11,6 +11,10 @@
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/client/index.d.ts",
+      "default": "./lib/client.js"
     }
   },
   "files": [
@@ -19,18 +23,28 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "verify": "npm run typecheck && npm test && npm pack --dry-run --ignore-scripts",
+    "test:browser": "node --test tests/browser.smoke.mjs",
+    "verify": "npm run typecheck && npm test && npm run test:browser && npm pack --dry-run --ignore-scripts",
     "prepack": "npm run build"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-connection"
+      ]
     }
   },
   "peerDependencies": {
@@ -38,7 +52,28 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
-    "typescript": "7.0.2",
+    "@deepseek-ai/dsh-api-workspace-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-store": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-theme": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-workspace": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-skill": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-skill-filesystem": "0.2.0-rc.2",
+    "@types/node": "^24.19.0",
+    "@types/react": "18.3.1",
+    "@types/react-dom": "18.3.0",
+    "esbuild": "^0.25.12",
+    "jsdom": "^27.4.0",
+    "playwright": "1.63.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
     "yaml": "2.9.1"
   }
 }
