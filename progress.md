@@ -1,5 +1,17 @@
 # 项目进度
 
+## Desktop 安装与 preset 范围修复 · 2026-10-01
+
+- 用户授权安装到桌面端；通过正在运行的 Desktop 官方 pluginManager 服务安装并启用，先备份 profile 的 package.json、锁文件与 patch。
+- 实际全局 filesystem 提供方已关闭，个人技能在 standing preset scope 中；修复管理页面，默认读取当前默认 preset，并增加技能配置选择器。
+- 使用公共 acquireScope API 在读写期间保留并释放租约；操作绑定所选 preset，不创建 Agent、不改变会话配置或原来关闭的全局提供方。
+- 0.1.1 的完整 `npm run verify` 通过：23 项业务/集成测试、1 项浏览器测试，无失败或跳过，类型、构建、打包预检通过。
+- 官方服务更新 0.1.1 后返回 restart-required；用户明确授权立即重启，已重新打开 DSH Desktop。
+- 重启后的真实 profile 确认 0.1.1 installed/enabled；standard 范围完整返回 29 项技能，其中 25 项可管理，含 user-dsh、user-agents 与 bundled 来源。
+- 隔离浏览器只读连接真实 Desktop host，点击「技能」：页面显示 29 行、25 个开关，技能配置为 standard，无页面异常；截图 artifacts/skills-live-desktop.png 已检查。
+- 对照原始备份确认原有依赖、bundle 保留，cordis.patch.yml 内容未变；新增依赖仅 dsh-skills-manager。没有启停或删除任何用户技能。
+- 本次修复单独创建对应 Git commit，最终状态以 Git 记录为准。
+
 ## 技能管理开发 · 2026-10-01
 
 - 已按用户修正固定 0.2.0-rc.2 的目标接口，完成宿主管理、认证传输、客户端 lazy-CJS 构建与双列页面。

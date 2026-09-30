@@ -54,6 +54,11 @@ test('actual 0.2.0-rc.2 Slot renderer mounts the lazy client and supports search
   await env.skill('demo-skill')
   await env.skill('another-skill')
   env.ctx.skills.register({ name: 'system-skill', description: 'Built in', content: 'virtual body', source: 'bundled' })
+  const presetKey = {}
+  const presetService = await env.ctx.plugin({ name: 'ui-test-presets', apply(ctx) {
+    ctx.reflect.provide('agentPresets', { defaultId: 'personal', async list() { return [{ id: 'personal', name: '个人配置' }] }, async acquireScope() { return { key: presetKey, async [Symbol.asyncDispose]() {} } } })
+  } })
+  t.after(() => presetService.dispose())
   const dom = new JSDOM('<!doctype html><html><head></head><body><div id="app"></div></body></html>', { pretendToBeVisual: true, url: 'http://127.0.0.1' })
   const originals = new Map()
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, navigator: dom.window.navigator, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true })) {
@@ -97,6 +102,14 @@ test('actual 0.2.0-rc.2 Slot renderer mounts the lazy client and supports search
   assert.equal(document.querySelectorAll('.dsm-row').length, 3)
   assert.equal(document.querySelectorAll('.dsm-readonly').length, 1)
   assert.equal(document.querySelector('section[aria-label="系统"] .dsm-group-head button'), null)
+  const presetPicker = document.querySelector('select[aria-label="技能配置"]')
+  assert.equal(presetPicker.value, 'personal')
+  await act(async () => { presetPicker.value = ''; presetPicker.dispatchEvent(new dom.window.Event('change', { bubbles: true })) })
+  await wait(() => find('关闭 demo-skill') && !find('关闭 demo-skill').disabled)
+  assert.equal(presetPicker.value, '')
+  await act(async () => { presetPicker.value = 'personal'; presetPicker.dispatchEvent(new dom.window.Event('change', { bubbles: true })) })
+  await wait(() => find('关闭 demo-skill') && !find('关闭 demo-skill').disabled)
+  assert.equal(presetPicker.value, 'personal')
   const search = find('搜索技能')
   await act(async () => {
     Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(search, 'demo')

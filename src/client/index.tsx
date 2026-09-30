@@ -12,7 +12,7 @@ export const inject = ['slots', 'connection']
 export function apply(ctx: Context) {
   const connection = ctx.get('connection') as unknown as { rpc: ClientConnectionRpc }
   const model = new ManagerModel(connection.rpc)
-  const refresh = (cwd?: string) => model.refresh(cwd)
+  const refresh = (cwd?: string, preset?: string) => model.refresh(cwd, preset)
   const mutate = (action: Action, rows: SkillRow[]) => model.mutate(action, rows)
   ctx.effect(() => {
     const style = document.createElement('style')

@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
 import type { SkillRegistry } from '@deepseek-ai/dsh-skill'
-import { SkillsManager, type Config } from './manager.js'
+import { SkillsManager, type Config, type PresetAccess } from './manager.js'
 import { ENDPOINT, ManagerError, type MutationRequest } from './protocol.js'
 
 export type { Config } from './manager.js'
@@ -34,7 +34,13 @@ export function parseMutation(value: unknown): MutationRequest {
     return { id: target.id, revision: target.revision }
   })
   if (new Set(targets.map(target => target.id)).size !== targets.length) throw new ManagerError('BAD_REQUEST', '不能重复选择同一技能')
-  return { action: payload.action as MutationRequest['action'], targets, cwd: cwdOf(payload.cwd) }
+  return { action: payload.action as MutationRequest['action'], targets, cwd: cwdOf(payload.cwd), preset: presetOf(payload.preset) }
+}
+
+function presetOf(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.length > 256 || value.includes('\0')) throw new ManagerError('BAD_REQUEST', '技能配置范围无效')
+  return value
 }
 
 /** Register an authenticated logical API, shared by Electron IPC and browser carriers. */
@@ -47,7 +53,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     invalidate = control.invalidate
     return { name: 'dsh-skills-manager-refresh', list: async () => [], get: async () => undefined }
   })
-  const manager = new SkillsManager(skills, () => invalidate(), config)
+  const manager = new SkillsManager(skills, () => invalidate(), config, () => ctx.get('agentPresets') as PresetAccess | undefined)
   ctx.effect(() => () => manager.dispose(), 'skills manager: pending operations')
   for (const operation of ['list', 'mutate'] as const) {
     const endpoint = `${ENDPOINT}/${operation}`
@@ -63,7 +69,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         if (typeof envelope.rpcId !== 'string' || envelope.rpcId.length > 256 || envelope.type !== 'client-request') throw new ManagerError('BAD_REQUEST', 'RPC 请求格式无效')
         rpcId = envelope.rpcId
         if (envelope.method !== endpoint) throw new ManagerError('BAD_REQUEST', 'RPC 接口与请求路径不一致')
-        const value = operation === 'list' ? await manager.list(cwdOf(object(envelope.payload).cwd), request.signal) : await manager.mutate(parseMutation(envelope.payload), request.signal)
+        const payload = object(envelope.payload)
+        const value = operation === 'list' ? await manager.list(cwdOf(payload.cwd), request.signal, presetOf(payload.preset)) : await manager.mutate(parseMutation(payload), request.signal)
         return Response.json({ type: 'server-response', rpcId, result: { ok: true, value } }, { headers: { 'cache-control': 'no-store' } })
       } catch (error) {
         return Response.json({ type: 'server-response', rpcId, result: { ok: false, error: { code: error instanceof ManagerError ? error.code : 'MANAGER_FAILED', message: error instanceof Error ? error.message : String(error), details: {} } } }, { headers: { 'cache-control': 'no-store' } })

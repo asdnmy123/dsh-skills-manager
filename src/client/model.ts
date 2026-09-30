@@ -5,6 +5,7 @@ export interface State {
   catalog: Catalog
   status: 'loading' | 'ready' | 'error'
   cwd: string
+  preset?: string
   busy: boolean
   error?: string
   notice?: string
@@ -28,17 +29,18 @@ export class ManagerModel {
     this.state = { ...this.state, ...update }
     for (const listener of this.listeners) listener()
   }
-  async refresh(cwd = this.state.cwd) {
+  async refresh(cwd = this.state.cwd, preset = this.state.preset) {
     if (this.state.busy || this.lifetime.signal.aborted) return
     this.read?.abort()
     const read = this.read = new AbortController()
     const generation = ++this.generation
-    this.publish({ cwd, status: 'loading', error: undefined, ...(cwd !== this.state.cwd ? { catalog: { skills: [], complete: false }, notice: undefined, failures: [] } : {}) })
+    this.publish({ cwd, preset, status: 'loading', error: undefined, ...(cwd !== this.state.cwd || preset !== this.state.preset ? { catalog: { skills: [], complete: false, presets: this.state.catalog.presets }, notice: undefined, failures: [] } : {}) })
     try {
-      const response = await this.rpc.call(CHANNEL, `${ENDPOINT}/list`, { cwd }, AbortSignal.any([read.signal, this.lifetime.signal]))
+      const response = await this.rpc.call(CHANNEL, `${ENDPOINT}/list`, { cwd, preset }, AbortSignal.any([read.signal, this.lifetime.signal]))
       if (generation !== this.generation || read.signal.aborted) return
       if (!response.ok) throw new Error(response.error.message)
-      this.publish({ status: 'ready', catalog: response.value as Catalog })
+      const catalog = response.value as Catalog
+      this.publish({ status: 'ready', catalog, preset: catalog.preset ?? preset })
     } catch (error) {
       if (!read.signal.aborted && generation === this.generation) this.publish({ status: 'error', error: error instanceof Error ? error.message : '无法连接技能管理服务' })
     }
@@ -49,7 +51,7 @@ export class ManagerModel {
     ++this.generation
     this.publish({ busy: true, error: undefined, notice: undefined, failures: [] })
     try {
-      const response = await this.rpc.call(CHANNEL, `${ENDPOINT}/mutate`, { cwd: this.state.cwd, action, targets: rows.map(row => ({ id: row.id, revision: row.revision })) }, this.lifetime.signal)
+      const response = await this.rpc.call(CHANNEL, `${ENDPOINT}/mutate`, { cwd: this.state.cwd, preset: this.state.preset, action, targets: rows.map(row => ({ id: row.id, revision: row.revision })) }, this.lifetime.signal)
       if (!response.ok) throw new Error(response.error.message)
       const result = response.value as MutationResult
       const successes = result.results.filter(row => row.ok).length

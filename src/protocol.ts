@@ -19,12 +19,15 @@ export interface SkillRow {
 export interface Catalog {
   skills: SkillRow[]
   complete: boolean
+  preset?: string
+  presets?: { id: string; name?: string; broken?: string }[]
 }
 
 export type Action = 'enable' | 'disable' | 'delete'
 export interface Target { id: string; revision: string }
 export interface MutationRequest {
   cwd?: string
+  preset?: string
   action: Action
   targets: Target[]
 }

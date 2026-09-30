@@ -18,6 +18,11 @@ test('isolated browser renders real lazy modules in light/dark and narrow layout
     ['data-analysis', '探索数据、提取趋势，并生成清晰的图表。', ''],
   ]) await env.skill(name, { description, flags })
   env.ctx.skills.register({ name: 'office-tools', description: '随 dsh 提供的办公文档能力。', content: 'builtin', source: 'bundled' })
+  const key = {}
+  const presetService = await env.ctx.plugin({ name: 'browser-presets', apply(ctx) {
+    ctx.reflect.provide('agentPresets', { defaultId: 'personal', async list() { return [{ id: 'personal', name: '默认配置' }] }, async acquireScope() { return { key, async [Symbol.asyncDispose]() {} } } })
+  } })
+  t.after(() => presetService.dispose())
   const vendor = await build({ entryPoints: ['tests/preview-entry.tsx'], bundle: true, write: false, platform: 'browser', format: 'iife', define: { 'process.env.NODE_ENV': '"production"' } })
   const asset = async name => await readFile(new URL(import.meta.resolve(name)), 'utf8')
   const theme = await asset('@deepseek-ai/dsh-client-ui-theme/client')

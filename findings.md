@@ -25,6 +25,16 @@
 
 ## 官方资料
 
+## 真实 Desktop 核对 · 2026-10-01
+
+- 已安装应用的归档 manifest 显示 @deepseek-ai/dsh-desktop 0.2.0-rc.2，host 使用专用 desktop profile。
+- 该用户配置的全局 skill-filesystem row disabled；standard 等 preset 使用独立 standing scope。因此 snapshot 只传 cwd 不传 scope 时，只能看到 4 项系统技能。
+- agentPresets.defaultId/list/acquireScope 为公共访问接口。acquireScope 返回 key 与 Symbol.asyncDispose 的 revision lease；管理页用同一租约覆盖列表或整次写操作，不创建 Agent，也不调用 select。
+- Desktop 官方 pluginManager/installBundle 初次安装可热加载，更新已安装包明确返回 restart-required。本次更新 0.1.1，获用户授权后重启。
+- 真实宿主重启后返回 29 项，其中 25 项本地可管理；同一 host 的实际客户端页面经隔离浏览器验证，未修改用户技能。
+
+## 参考链接
+
 - [第一个插件](https://deepseek-harness.github.io/deepseek-harness/develop/basic/)
 - [架构参考](https://deepseek-harness.github.io/deepseek-harness/reference/)
 - [打包与安装插件](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish)

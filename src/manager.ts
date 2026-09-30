@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { access, lstat, mkdir, open, readFile, realpath, rename, unlink, chmod } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
-import type { SkillRegistry, SkillSummary } from '@deepseek-ai/dsh-skill'
+import type { SkillRegistry, SkillSummary, SkillViewOptions } from '@deepseek-ai/dsh-skill'
 import { readHeader, setEnabled } from './frontmatter.js'
 import { ManagerError, type Catalog, type MutationRequest, type MutationResult, type SkillRow } from './protocol.js'
 
@@ -15,6 +15,12 @@ export interface Config {
 }
 
 interface ManagedFile { path: string; root: string; target: string; raw: string; revision: string; mode: number }
+/** Public preset registry contract; acquiring a lease neither creates an Agent nor selects a preset. */
+export interface PresetAccess {
+  readonly defaultId: string
+  list(): Promise<NonNullable<Catalog['presets']>>
+  acquireScope(id?: string): Promise<{ key: NonNullable<SkillViewOptions['scope']>; [Symbol.asyncDispose](): Promise<void> }>
+}
 const MAX_FILE_BYTES = 1024 * 1024
 const digest = (value: string) => createHash('sha256').update(value).digest('hex')
 const identity = (skill: SkillSummary) => digest(JSON.stringify([skill.provider, skill.source, skill.path, skill.name]))
@@ -39,7 +45,7 @@ async function projectRoot(cwd: string): Promise<string> {
 export class SkillsManager {
   private queue: Promise<unknown> = Promise.resolve()
   private active = true
-  constructor(private readonly skills: Pick<SkillRegistry, 'snapshot'>, private readonly invalidate: () => void, private readonly config: Config = {}) {}
+  constructor(private readonly skills: Pick<SkillRegistry, 'snapshot'>, private readonly invalidate: () => void, private readonly config: Config = {}, private readonly presets: () => PresetAccess | undefined = () => undefined) {}
 
   dispose(): Promise<unknown> { this.active = false; return this.queue }
 
@@ -86,20 +92,31 @@ export class SkillsManager {
     return { path, root, target: relative(root, path).split(sep).length === 2 ? dirname(path) : path, raw, revision: digest(raw), mode: stat.mode }
   }
 
-  async list(cwd?: string, signal?: AbortSignal): Promise<Catalog> {
-    this.assertActive(signal)
-    this.invalidate()
-    const snapshot = await this.skills.snapshot({ cwd, signal })
-    const rows = await Promise.all(snapshot.skills.map(async skill => {
-      const row: SkillRow = { id: identity(skill), name: skill.name, description: skill.description, source: skill.source, provider: skill.provider,
-        path: skill.path, enabled: skill.invocation.modelInvocable || skill.invocation.userInvocable, invocation: skill.invocation, manageable: false }
-      try { const file = await this.file(skill, cwd); row.revision = file.revision; row.manageable = true } catch (error) {
-        row.reason = error instanceof ManagerError ? error.message : '无法安全读写此技能文件'
-      }
-      return row
-    }))
-    this.assertActive(signal)
-    return { skills: rows, complete: snapshot.complete }
+  private async inPreset<T>(preset: string | undefined, run: (scope: SkillViewOptions['scope'], id: string, presets?: PresetAccess) => Promise<T>): Promise<T> {
+    const presets = this.presets()
+    const id = preset ?? presets?.defaultId ?? ''
+    if (!id) return run(undefined, '', presets)
+    if (!presets) throw new ManagerError('UNAVAILABLE', '技能配置范围暂不可用，请刷新')
+    const lease = await presets.acquireScope(id)
+    try { return await run(lease.key, id, presets) } finally { await lease[Symbol.asyncDispose]() }
+  }
+
+  async list(cwd?: string, signal?: AbortSignal, preset?: string): Promise<Catalog> {
+    return this.inPreset(preset, async (scope, id, presets) => {
+      this.assertActive(signal)
+      this.invalidate()
+      const snapshot = await this.skills.snapshot({ cwd, signal, scope })
+      const rows = await Promise.all(snapshot.skills.map(async skill => {
+        const row: SkillRow = { id: identity(skill), name: skill.name, description: skill.description, source: skill.source, provider: skill.provider,
+          path: skill.path, enabled: skill.invocation.modelInvocable || skill.invocation.userInvocable, invocation: skill.invocation, manageable: false }
+        try { const file = await this.file(skill, cwd); row.revision = file.revision; row.manageable = true } catch (error) {
+          row.reason = error instanceof ManagerError ? error.message : '无法安全读写此技能文件'
+        }
+        return row
+      }))
+      this.assertActive(signal)
+      return { skills: rows, complete: snapshot.complete, preset: id, presets: await presets?.list() }
+    })
   }
 
   mutate(request: MutationRequest, signal?: AbortSignal): Promise<MutationResult> {
@@ -109,49 +126,51 @@ export class SkillsManager {
   }
 
   private async runMutation(request: MutationRequest, signal?: AbortSignal): Promise<MutationResult> {
-    this.assertActive(signal)
-    this.invalidate()
-    const snapshot = await this.skills.snapshot({ cwd: request.cwd, signal })
-    if (!snapshot.complete) throw new ManagerError('INCOMPLETE', '技能目录尚未完整加载，请刷新后重试')
-    const results: MutationResult['results'] = []
-    for (const target of request.targets) {
+    return this.inPreset(request.preset, async scope => {
       this.assertActive(signal)
-      const skill = snapshot.skills.find(row => identity(row) === target.id)
-      try {
-        if (!skill) throw new ManagerError('STALE', '技能已移除或被同名技能替换，请刷新')
-        const file = await this.file(skill, request.cwd)
-        if (file.revision !== target.revision) throw new ManagerError('STALE', '技能已被修改，请刷新后重试')
-        const lockPath = `${file.path}.dsh-skills-manager.lock`
-        const lock = await open(lockPath, 'wx').catch(error => {
-          if (error.code === 'EEXIST') throw new ManagerError('BUSY', '此技能正在被另一个管理操作修改')
-          throw error
-        })
-        // The exclusive file's existence is the lock. Closing its handle lets Windows move a bundle directory.
-        await lock.close()
-        let trashPath: string | undefined
+      this.invalidate()
+      const snapshot = await this.skills.snapshot({ cwd: request.cwd, signal, scope })
+      if (!snapshot.complete) throw new ManagerError('INCOMPLETE', '技能目录尚未完整加载，请刷新后重试')
+      const results: MutationResult['results'] = []
+      for (const target of request.targets) {
+        this.assertActive(signal)
+        const skill = snapshot.skills.find(row => identity(row) === target.id)
         try {
-          // Recheck the identity, links and contents after obtaining the per-file lock.
-          const fresh = await this.file(skill, request.cwd)
-          if (fresh.revision !== file.revision) throw new ManagerError('STALE', '技能已被修改，请刷新后重试')
-          this.assertActive(signal)
-          if (request.action === 'delete') {
-            trashPath = await this.trash(file)
-          } else {
-            const next = setEnabled(file.raw, request.action === 'enable')
-            if (next !== file.raw) await this.write(file, next, skill, request.cwd, signal)
+          if (!skill) throw new ManagerError('STALE', '技能已移除或被同名技能替换，请刷新')
+          const file = await this.file(skill, request.cwd)
+          if (file.revision !== target.revision) throw new ManagerError('STALE', '技能已被修改，请刷新后重试')
+          const lockPath = `${file.path}.dsh-skills-manager.lock`
+          const lock = await open(lockPath, 'wx').catch(error => {
+            if (error.code === 'EEXIST') throw new ManagerError('BUSY', '此技能正在被另一个管理操作修改')
+            throw error
+          })
+          // The exclusive file's existence is the lock. Closing its handle lets Windows move a bundle directory.
+          await lock.close()
+          let trashPath: string | undefined
+          try {
+            // Recheck the identity, links and contents after obtaining the per-file lock.
+            const fresh = await this.file(skill, request.cwd)
+            if (fresh.revision !== file.revision) throw new ManagerError('STALE', '技能已被修改，请刷新后重试')
+            this.assertActive(signal)
+            if (request.action === 'delete') {
+              trashPath = await this.trash(file)
+            } else {
+              const next = setEnabled(file.raw, request.action === 'enable')
+              if (next !== file.raw) await this.write(file, next, skill, request.cwd, signal)
+            }
+          } finally {
+            // The lock moves with directory bundles when the bundle is deleted.
+            const movedLock = trashPath && file.target !== file.path ? join(trashPath, basename(lockPath)) : lockPath
+            await unlink(movedLock).catch(error => { if (error.code !== 'ENOENT') throw error })
+            this.invalidate()
           }
-        } finally {
-          // The lock moves with directory bundles when the bundle is deleted.
-          const movedLock = trashPath && file.target !== file.path ? join(trashPath, basename(lockPath)) : lockPath
-          await unlink(movedLock).catch(error => { if (error.code !== 'ENOENT') throw error })
-          this.invalidate()
+          results.push({ id: target.id, name: skill.name, ok: true, trashPath })
+        } catch (error) {
+          results.push({ id: target.id, name: skill?.name ?? '未知技能', ok: false, message: error instanceof Error ? error.message : String(error) })
         }
-        results.push({ id: target.id, name: skill.name, ok: true, trashPath })
-      } catch (error) {
-        results.push({ id: target.id, name: skill?.name ?? '未知技能', ok: false, message: error instanceof Error ? error.message : String(error) })
       }
-    }
-    return { results }
+      return { results }
+    })
   }
 
   private async write(file: ManagedFile, raw: string, skill: SkillSummary, cwd?: string, signal?: AbortSignal) {

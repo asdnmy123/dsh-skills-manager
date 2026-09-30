@@ -24,3 +24,10 @@
 - 初次查询 Git 根目录提示未初始化仓库；已通过 git init -b main 处理。
 - 隔离命令执行两次因 setup refresh 错误无法启动；使用获自动审批的非隔离执行继续初始化。
 - 隔离账户创建的 .git 触发所有权校验；调整所有者被操作系统拒绝，已为当前用户添加仅针对本项目的 Git safe.directory 配置。
+
+## Desktop 安装与作用域修复 · 2026-10-01
+
+- 使用 Desktop 官方 pluginManager 安装本地包并热加载：complete
+- 发现实际配置关闭全局 filesystem 提供方、改为 preset 专属提供方；新增默认 preset 与配置选择，使用公共 scope 租约：complete
+- 新增 preset 生命周期、目标隔离、客户端竞态与选择器回归测试，完整验证：complete
+- 更新安装包、通过官方服务更新 Desktop 插件、核对个人技能与客户端资源、创建对应 commit：complete

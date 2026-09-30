@@ -7,7 +7,7 @@ import type { State } from './model.js'
 
 export interface PageInjected {
   useManager: <T>(selector: (state: State) => T) => T
-  refresh: (cwd?: string) => Promise<void>
+  refresh: (cwd?: string, preset?: string) => Promise<void>
   mutate: (action: Action, rows: SkillRow[]) => Promise<void>
 }
 type Props = PropsRuntime<'main'> & PageInjected
@@ -63,7 +63,7 @@ export function SkillsPage({ useManager, useWorkspaces, refresh, mutate }: Props
     window.addEventListener('focus', focus)
     return () => { mounted.current = false; window.removeEventListener('focus', focus) }
   }, [refresh])
-  useEffect(() => { setSelected(new Set()); setDeleting(null) }, [state.cwd])
+  useEffect(() => { setSelected(new Set()); setDeleting(null) }, [state.cwd, state.preset])
   const blocked = state.busy || state.status !== 'ready' || !state.catalog.complete
   const visible = state.catalog.skills.filter(row => (tab === 'all' || bucket(row.source) === tab)
     && (status === 'all' || row.enabled === (status === 'enabled'))
@@ -88,7 +88,7 @@ export function SkillsPage({ useManager, useWorkspaces, refresh, mutate }: Props
         <button className="dsm-icon-btn" aria-label="刷新技能" title="刷新技能" disabled={state.busy || state.status === 'loading'} onClick={() => void refresh()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-5L3 9m0-5v5h5M4 13a8 8 0 0 0 14 5l3-3m0 5v-5h-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
       </div>
     </header>
-    <div className="dsm-scope"><label>查看范围 <select aria-label="查看范围" value={state.cwd} disabled={state.busy} onChange={event => void refresh(event.target.value)}><option value="">全局技能</option>{workspaces.map(workspace => <option key={workspace.workspaceId} value={workspace.path}>{workspace.title}</option>)}</select></label><label>状态 <select aria-label="技能状态" value={status} onChange={event => { setStatus(event.target.value); setSelected(new Set()) }}><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已关闭</option></select></label></div>
+    <div className="dsm-scope">{!!state.catalog.presets?.length && <label>技能配置 <select aria-label="技能配置" value={state.preset ?? ''} disabled={state.busy} onChange={event => void refresh(undefined, event.target.value)}><option value="">宿主全局</option>{state.catalog.presets.map(preset => <option key={preset.id} value={preset.id} disabled={!!preset.broken}>{preset.name ?? preset.id}{preset.broken ? '（不可用）' : ''}</option>)}</select></label>}<label>查看范围 <select aria-label="查看范围" value={state.cwd} disabled={state.busy} onChange={event => void refresh(event.target.value)}><option value="">全局技能</option>{workspaces.map(workspace => <option key={workspace.workspaceId} value={workspace.path}>{workspace.title}</option>)}</select></label><label>状态 <select aria-label="技能状态" value={status} onChange={event => { setStatus(event.target.value); setSelected(new Set()) }}><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已关闭</option></select></label></div>
     <nav className="dsm-filters" aria-label="技能来源">{tabs.map(item => <button key={item.id} className="dsm-pill" aria-pressed={tab === item.id} onClick={() => { setTab(item.id); setSelected(new Set()) }}>{item.label}<span className="dsm-count">{state.catalog.skills.filter(row => item.id === 'all' || bucket(row.source) === item.id).length}</span></button>)}</nav>
     <div aria-live="polite">{state.notice && <div className="dsm-message success" role="status">{state.notice}</div>}{state.failures.length > 0 && <div className="dsm-message error" role="alert">{state.failures.map((failure, index) => <div key={index}>{failure}</div>)}</div>}</div>
     {state.error && <div className="dsm-message error" role="alert">{state.error} <button className="dsm-link" onClick={() => void refresh()}>重试</button></div>}

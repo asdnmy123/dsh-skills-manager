@@ -25,7 +25,7 @@ export async function fixture(t, options = {}) {
   } }))
   fibers.push(await ctx.plugin(connection))
   fibers.push(await ctx.plugin(SkillRegistry))
-  fibers.push(await ctx.plugin(filesystem, { ...config, watch: false, ...options.filesystem }))
+  if (options.filesystem !== false) fibers.push(await ctx.plugin(filesystem, { ...config, watch: false, ...options.filesystem }))
   let manager = await ctx.plugin(plugin, { ...config, ...options.manager })
   const fetcher = ctx.connection.createSharedFetchHandler('/api')
   let sequence = 0
