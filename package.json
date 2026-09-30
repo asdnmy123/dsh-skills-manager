@@ -1,9 +1,15 @@
 {
   "name": "dsh-skills-manager",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "DeepSeek Harness Desktop 技能管理页面",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asdnmy123/dsh-skills-manager.git"
+  },
+  "homepage": "https://github.com/asdnmy123/dsh-skills-manager#readme",
+  "bugs": { "url": "https://github.com/asdnmy123/dsh-skills-manager/issues" },
   "type": "module",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -20,18 +26,22 @@
   "files": [
     "lib",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "docs/advanced.md",
+    "docs/development.md",
+    "docs/images"
   ],
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "check:dist": "node scripts/check-dist.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:browser": "node --test tests/browser.smoke.mjs",
-    "verify": "npm run typecheck && npm test && npm run test:browser && npm pack --dry-run --ignore-scripts",
-    "prepack": "npm run build"
+    "verify": "npm run check:dist && npm run typecheck && npm test && npm run test:browser && npm pack --dry-run --ignore-scripts"
   },
   "dsh": {
     "bundle": {

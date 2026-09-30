@@ -1,7 +1,9 @@
 node_modules/
 .npm-cache/
-lib/
 artifacts/
+task_plan.md
+findings.md
+progress.md
 coverage/
 *.tsbuildinfo
 *.tgz
