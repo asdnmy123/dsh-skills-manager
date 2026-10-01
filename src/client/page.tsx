@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { Action, SkillRow } from '../protocol.js'
 import type { State } from './model.js'
+import { Select, Toast } from './controls.js'
 
 export interface PageInjected {
   useManager: <T>(selector: (state: State) => T) => T
@@ -88,9 +89,13 @@ export function SkillsPage({ useManager, useWorkspaces, refresh, mutate }: Props
         <button className="dsm-icon-btn" aria-label="刷新技能" title="刷新技能" disabled={state.busy || state.status === 'loading'} onClick={() => void refresh()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14-5L3 9m0-5v5h5M4 13a8 8 0 0 0 14 5l3-3m0 5v-5h-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
       </div>
     </header>
-    <div className="dsm-scope">{!!state.catalog.presets?.length && <label>技能配置 <select aria-label="技能配置" value={state.preset ?? ''} disabled={state.busy} onChange={event => void refresh(undefined, event.target.value)}><option value="">宿主全局</option>{state.catalog.presets.map(preset => <option key={preset.id} value={preset.id} disabled={!!preset.broken}>{preset.name ?? preset.id}{preset.broken ? '（不可用）' : ''}</option>)}</select></label>}<label>查看范围 <select aria-label="查看范围" value={state.cwd} disabled={state.busy} onChange={event => void refresh(event.target.value)}><option value="">全局技能</option>{workspaces.map(workspace => <option key={workspace.workspaceId} value={workspace.path}>{workspace.title}</option>)}</select></label><label>状态 <select aria-label="技能状态" value={status} onChange={event => { setStatus(event.target.value); setSelected(new Set()) }}><option value="all">全部状态</option><option value="enabled">已启用</option><option value="disabled">已关闭</option></select></label></div>
+    <div className="dsm-scope">
+      {!!state.catalog.presets?.length && <Select label="技能配置" value={state.preset ?? ''} disabled={state.busy} onChange={value => void refresh(undefined, value)} options={[{ value: '', label: '宿主全局' }, ...state.catalog.presets.map(preset => ({ value: preset.id, label: `${preset.name ?? preset.id}${preset.broken ? '（不可用）' : ''}`, disabled: !!preset.broken }))]}/>}
+      <Select label="查看范围" value={state.cwd} disabled={state.busy} onChange={value => void refresh(value)} options={[{ value: '', label: '全局技能' }, ...workspaces.map(workspace => ({ value: workspace.path, label: workspace.title }))]}/>
+      <Select label="技能状态" value={status} onChange={value => { setStatus(value); setSelected(new Set()) }} options={[{ value: 'all', label: '全部状态' }, { value: 'enabled', label: '已启用' }, { value: 'disabled', label: '已关闭' }]}/>
+    </div>
     <nav className="dsm-filters" aria-label="技能来源">{tabs.map(item => <button key={item.id} className="dsm-pill" aria-pressed={tab === item.id} onClick={() => { setTab(item.id); setSelected(new Set()) }}>{item.label}<span className="dsm-count">{state.catalog.skills.filter(row => item.id === 'all' || bucket(row.source) === item.id).length}</span></button>)}</nav>
-    <div aria-live="polite">{state.notice && <div className="dsm-message success" role="status">{state.notice}</div>}{state.failures.length > 0 && <div className="dsm-message error" role="alert">{state.failures.map((failure, index) => <div key={index}>{failure}</div>)}</div>}</div>
+    <div className="dsm-toasts" aria-label="操作通知">{state.notice && <Toast key={state.notice} messages={[state.notice]}/>} {state.failures.length > 0 && <Toast key={state.failures.join('\n')} error messages={state.failures}/>}</div>
     {state.error && <div className="dsm-message error" role="alert">{state.error} <button className="dsm-link" onClick={() => void refresh()}>重试</button></div>}
     {state.status === 'loading' && <div className="dsm-message" role="status">正在加载技能…</div>}
     {state.status === 'ready' && !state.catalog.complete && <div className="dsm-message error" role="alert">部分技能来源暂不可用，当前列表可能不完整。请刷新后再进行管理操作。</div>}

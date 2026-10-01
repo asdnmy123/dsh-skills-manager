@@ -20,7 +20,7 @@ browser.startPreview = async () => {
   const ctx = new Cordis.Context()
   await ctx.plugin(modules['@deepseek-ai/dsh-client-connection'])
   await ctx.plugin(modules['@deepseek-ai/dsh-client-ui-renderer'])
-  const workspaces = { items: [], state: 'idle', phase: 'ready', error: null }
+  const workspaces = { items: Array.from({ length: 24 }, (_, index) => ({ workspaceId: `preview-${index}`, path: `D:/preview/workspace-${index}`, title: index === 23 ? '示例工作区：用于检查很长的项目名称能否在下拉菜单中正确显示' : `示例工作区 ${String(index + 1).padStart(2, '0')}` })), state: 'idle', phase: 'ready', error: null }
   await ctx.plugin({ name: 'preview-frame', inject: ['slots'], apply(ctx: any) {
     const binding = { key: undefined, props: {}, hooks: {}, keyedHooks: {} }
     const source = { getSnapshot: () => binding, subscribe: () => () => {} }
